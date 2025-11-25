@@ -2,6 +2,7 @@ import json
 from openai import OpenAI
 from src.tools import get_tools_list
 from src.search import search, format_search_results
+from src.browser import browse
 
 class Agent:
     def __init__(
@@ -49,10 +50,14 @@ class Agent:
         Build the mapping from tools name to executors.
         """
         return {
-            "search": self._execute_search
+            "search": self._execute_search,
+            "browse": self._execute_browse
         }
 
     def _execute_search(self, step_number: int, query: str) -> str:
+        """
+        Internal executor for the 'search' tool.
+        """
         print(f"--- Agent is searching: {query} ---")
         try:
             # Call search API
@@ -87,6 +92,37 @@ class Agent:
             error_msg = f"Searching Error: {e} "
             return error_msg
 
+    def _execute_browse(self, step_number:int, url:str) -> str:
+        """
+        Internal executor for the 'browse' tool.
+        """
+        print(f"--- Agent is browsing: {url} ---")
+        try:
+            # Execute browsing
+            page_content = browse(url)
+
+            # Log trajectory (truncate the content)
+            log_entry = {
+                "step_number": step_number,
+                "action": "browse",
+                "url": url,
+                "content_preview": page_content[:500] + "..." 
+            }
+            self.trajectory_steps.append(log_entry)
+
+            return page_content
+        
+        except Exception as e:
+            error_msg = f"Browsing failed: {str(e)}"
+            self.trajectory_steps.append({
+                "step_number": step_number,
+                "action": "browse",
+                "url": url,
+                "error": error_msg
+            })
+            return error_msg
+
+
     def run(self, question:  str) -> (str, list):
         """
         Execute agent loop.
@@ -102,12 +138,14 @@ class Agent:
 
         Available Tools:
         - search: Use this tool to search the internet for facts, current events, public figures, and other information.
+        - browse: Use this tool to read the FULL text of a specific URL.
 
         Your Workflow:
         1. ANALYZE: Determine if you need external information to answer the question.
         2. SEARCH: If needed, use the 'search' tool to gather information. You can search multiple times if the first result is not sufficient.
-        3. SYNTHESIZE: Once you have enough information, formulate your answer.
-        4. FINAL ANSWER: You MUST provide your final answer wrapped in <answer> and </answer> tags.
+        3. BROWSE: If a search snippet is cut off, ambiguous, or lacks detail, use BROWSE on that URL to get the facts.
+        4. SYNTHESIZE: Once you have enough information, formulate your answer.
+        5. FINAL ANSWER: You MUST provide your final answer wrapped in <answer> and </answer> tags.
 
         CRITICAL OUTPUT RULES:
         1.  Thinking Process: You may think freely before answering.
@@ -233,17 +271,17 @@ class Agent:
                 temperature=0.0,
                 max_tokens=self.max_tokens
             )
-            final_answer_raw = response.choices[0].message.content
+            final_answer = response.choices[0].message.content
 
         except Exception as e:
             print(f"Error in final fallback: {e}")
-            final_answer_raw = "<answer>Error generating final answer</answer>"
+            final_answer = "<answer>Error generating final answer</answer>"
 
         # Append trajectory steps
         self.trajectory_steps.append({
             "step_number": self.max_agent_steps,
             "action": "force_answer",
-            "answer_raw": final_answer_raw
+            "answer_raw": final_answer
         })
 
         return final_answer, self.trajectory_steps

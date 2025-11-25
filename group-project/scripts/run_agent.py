@@ -1,11 +1,9 @@
 import argparse
 import datetime
-import imp
 import logging
 import os
 import json
 import shutil
-from tkinter import E
 from tqdm import tqdm
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -148,8 +146,10 @@ def main():
     deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
     serper_api_key = os.getenv("SERPER_API_KEY")
 
-    if not deepseek_api_key or not serper_api_key:
+    if not deepseek_api_key:
         logger.warning("DEEPSEEK_API_KEY not found in environment variables.")
+    elif not serper_api_key:
+        logger.warning("SERPER_API_KEY not found in environment variables.")
 
     args = parse_args()
 
@@ -207,9 +207,9 @@ def main():
         ground_truths = item.get('answers',[])
         item_id = item.get('id','unknown')
 
-        try:
-            final_answer_raw = ""
+        final_answer = ""
 
+        try:
             if args.mode == "search":
                 # Run agent
                 final_answer_raw, steps = agent.run(question)
