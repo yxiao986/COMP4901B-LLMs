@@ -208,6 +208,7 @@ def main():
         item_id = item.get('id','unknown')
 
         final_answer = ""
+        final_answer_raw = ""
 
         try:
             if args.mode == "search":
