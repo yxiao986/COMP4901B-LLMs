@@ -136,33 +136,33 @@ class Agent:
 
             # 2. Check if tool calls, execute one at a time
             if response_message.tool_calls:
-                tool_call = response_message.tool_calls[0]
-                function_name = tool_call.function.name
+                for tool_call in response_message.tool_calls:
+                    function_name = tool_call.function.name
 
-                # 3. Check if tool available
-                if function_name in self.available_tools_map:
-                    function_to_call = self.available_tools_map[function_name]
+                    # 3. Check if tool available
+                    if function_name in self.available_tools_map:
+                        function_to_call = self.available_tools_map[function_name]
 
-                    try:
-                        # Execute tool
-                        function_args = json.loads(tool_call.function.arguments)
-                        tool_output_string = function_to_call(**function_args)
-                        # Update conversation
-                        self.conversation_history.append(
-                            {
-                                "tool_call_id": tool_call.id,
-                                "role": "tool",
-                                "name": function_name,
-                                "content": tool_output_string,
-                            }
-                        )
+                        try:
+                            # Execute tool
+                            function_args = json.loads(tool_call.function.arguments)
+                            tool_output_string = function_to_call(**function_args)
+                            # Update conversation
+                            self.conversation_history.append(
+                                {
+                                    "tool_call_id": tool_call.id,
+                                    "role": "tool",
+                                    "name": function_name,
+                                    "content": tool_output_string,
+                                }
+                            )
 
-                    except Exception as e:
-                        print(f"--- Error: {e} happened when executing tools")
-                
-                else:
-                    # Unknown tools are called
-                    print(f"--- Agent error: LLM tried to call unknown tool'{function_name}'")
+                        except Exception as e:
+                            print(f"--- Error: {e} happened when executing tools")
+                    
+                    else:
+                        # Unknown tools are called
+                        print(f"--- Agent error: LLM tried to call unknown tool'{function_name}'")
 
             else:
                 # No tool call
