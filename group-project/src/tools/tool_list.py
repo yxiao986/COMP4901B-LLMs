@@ -1,0 +1,101 @@
+def get_tools_list() -> list[dict]:
+    """
+    Get the list of tools.
+    """
+    return [{
+        "type": "function",
+        "function": {
+            "name": "search",
+            "description": "Search the web for information. Use this to find URLs and brief snippets.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query string."
+                    }
+                },
+                "required": ["query"]
+            }
+        }       
+    }, {
+        "type": "function",
+        "function": {
+            "name": "browse",
+            "description": "Visit a specific URL to read its full text content. Use this when search result snippets are truncated or lack sufficient detail.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL of the webpage to browse."
+                    }
+                },
+                "required": ["url"]
+            }
+        }       
+    },{
+            "type": "function",
+            "function": {
+                "name": "list_github_directory",
+                "description": "List files in a GitHub repository folder.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "repo_name": {"type": "string", "description": "e.g. 'owner/repo'"},
+                        "path": {"type": "string", "description": "Folder path (empty for root)"}
+                    },
+                    "required": ["repo_name", "path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_github_file",
+                "description": "Read the content of a file from GitHub.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "repo_name": {"type": "string"},
+                        "file_path": {"type": "string", "description": "Full path to the file"}
+                    },
+                    "required": ["repo_name", "file_path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_github_branch",
+                "description": "Create a new branch to safely add test files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "repo_name": {"type": "string"},
+                        "new_branch_name": {"type": "string", "description": "Name of new branch (e.g. 'test/unit-tests')"},
+                        "base_branch": {"type": "string", "description": "Usually 'main'"}
+                    },
+                    "required": ["repo_name", "new_branch_name", "base_branch"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_or_update_file",
+                "description": "Create a new file (e.g. a test script) or update one. This acts as 'commit & push'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "repo_name": {"type": "string"},
+                        "file_path": {"type": "string", "description": "Path where the file should be created (e.g. 'tests/test_agent.py')"},
+                        "file_content": {"type": "string", "description": "The python code content of the test file."},
+                        "commit_message": {"type": "string", "description": "Git commit message (e.g. 'Add unit tests')"},
+                        "branch_name": {"type": "string", "description": "The branch to push to."}
+                    },
+                    "required": ["repo_name", "file_path", "file_content", "commit_message", "branch_name"]
+                }
+            }
+        }]
+
