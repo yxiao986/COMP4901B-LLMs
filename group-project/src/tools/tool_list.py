@@ -97,5 +97,38 @@ def get_tools_list() -> list[dict]:
                     "required": ["repo_name", "file_path", "file_content", "commit_message", "branch_name"]
                 }
             }
+        },{
+            "type": "function",
+            "function": {
+                "name": "generate_html_report",
+                "description": "Generate a comprehensive, interactive documentation website (Javadoc-style). Supports sidebar navigation, search, and Mermaid diagrams.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filename": {
+                            "type": "string", 
+                            "description": "Output file path (e.g., 'docs/report.html')"
+                        },
+                        "title": {
+                            "type": "string", 
+                            "description": "The site/project title."
+                        },
+                        "pages": {
+                            "type": "array",
+                            "description": "List of documentation pages for the sidebar.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string", "description": "Page title in sidebar."},
+                                    "icon": {"type": "string", "description": "Bootstrap icon name (e.g., 'code-slash', 'diagram-3', 'book'). Optional."},
+                                    "content": {"type": "string", "description": "Markdown content for this page. Supports code blocks and mermaid."}
+                                },
+                                "required": ["title", "content"]
+                            }
+                        }
+                    },
+                    "required": ["filename", "title", "pages"]
+                }
+            }
         }]
 

@@ -1,8 +1,9 @@
 import json
 from openai import OpenAI
-import src.tools.github_tools as github_tools
+from src.tools.github_tools import create_github_branch, create_or_update_file, list_github_directory, read_github_file
 from src.tools.tool_list import get_tools_list
 from src.tools.web_tools import search, format_search_results, browse
+from src.tools.report_tool import generate_html_report
 
 class RealAgent:
     def __init__(
@@ -20,7 +21,8 @@ class RealAgent:
         # LLM Configuration
         self.llm_client = OpenAI(
             api_key=deepseek_api_key,
-            base_url=base_url
+            base_url=base_url,
+            timeout=600
         )
         self.model_name = model_name
         self.temperature = temperature
@@ -59,6 +61,7 @@ class RealAgent:
             "read_github_file": self._execute_read_github,
             "create_github_branch": self._execute_create_branch,
             "create_or_update_file": self._execute_write_file,
+            "generate_html_report": self._execute_generate_report
         }
 
     def _execute_search(self, step_number: int, query: str) -> str:
@@ -115,7 +118,7 @@ class RealAgent:
     def _execute_list_github(self, repo_name, path, step_number=0):
         try:
             print(f"--- Agent is Listing {path} ---")
-            result = github_tools.list_github_directory(repo_name, path, self.github_token)
+            result = list_github_directory(repo_name, path, self.github_token)
             self.trajectory_steps.append({
                 "step": step_number, "action": "list_files", "output": result
             })
@@ -126,7 +129,7 @@ class RealAgent:
     def _execute_read_github(self, repo_name, file_path, step_number=0):
         try:
             print(f"--- Agent is Reading {file_path} ---")
-            result = github_tools.read_github_file(repo_name, file_path, self.github_token)
+            result = read_github_file(repo_name, file_path, self.github_token)
             # Log truncated content to keep logs clean
             log_content = result[:500] + "..." if len(result) > 500 else result
             self.trajectory_steps.append({
@@ -139,7 +142,7 @@ class RealAgent:
     def _execute_create_branch(self, repo_name, new_branch_name, base_branch, step_number=0):
         try:
             print(f"--- Agent is Creating Branch {new_branch_name} ---")
-            result = github_tools.create_github_branch(repo_name, new_branch_name, base_branch, self.github_token)
+            result = create_github_branch(repo_name, new_branch_name, base_branch, self.github_token)
             self.trajectory_steps.append({
                 "step": step_number, "action": "create_branch", "output": result
             })
@@ -150,13 +153,29 @@ class RealAgent:
     def _execute_write_file(self, repo_name, file_path, file_content, commit_message, branch_name, step_number=0):
         try:
             print(f"--- Agent is Writing File {file_path} to {branch_name} ---")
-            result = github_tools.create_or_update_file(repo_name, file_path, file_content, commit_message, branch_name, self.github_token)
+            result = create_or_update_file(repo_name, file_path, file_content, commit_message, branch_name, self.github_token)
             self.trajectory_steps.append({
                 "step": step_number, "action": "write_file", "output": result
             })
             return result
         except Exception as e:  
             return self._handle_tool_error(step_number, "create_or_update_file", str(e))
+        
+    def _execute_generate_report(self, filename, title, pages, step_number=0):
+        try:
+            print(f"--- Agent is Generating Interactive Report: {filename} ---")
+            result = generate_html_report(filename, title, pages)
+            page_titles = [p['title'] for p in pages]
+            self.trajectory_steps.append({
+                "step": step_number,
+                "action": "tool_call",
+                "tool": "generate_html_report",
+                "args": {"filename": filename, "page_count": len(pages)},
+                "output": f"Generated site with pages: {page_titles}"
+            })
+            return result
+        except Exception as e:
+            return self._handle_tool_error(step_number, "generate_html_report", str(e))
         
         
     def _handle_tool_error(self, step_number, tool_name, error_msg):
@@ -225,7 +244,8 @@ class RealAgent:
                 tools=self.tools,
                 tool_choice="auto",
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=self.max_tokens,
+                timeout=600
             )
 
             response_message = response.choices[0].message
@@ -307,7 +327,8 @@ class RealAgent:
                 model=self.model_name,
                 messages=self.conversation_history,
                 temperature=0.0,
-                max_tokens=self.max_tokens
+                max_tokens=self.max_tokens,
+                timeout=600
             )
             final_answer = response.choices[0].message.content
 

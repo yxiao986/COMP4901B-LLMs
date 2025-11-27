@@ -1,8 +1,7 @@
 import json
 from openai import OpenAI
-from src.tools import get_tools_list
-from src.search import search, format_search_results
-from src.browser import browse
+from src.tools.tool_list import get_tools_list
+from src.tools.web_tools import search, format_search_results, browse
 
 class Agent:
     def __init__(
@@ -12,7 +11,7 @@ class Agent:
         model_name: str = "deepseek-chat",
         base_url: str = "https://api.deepseek.com/v1",
         max_agent_steps: int = 5,
-        num_search_results: int = 3,
+        num_search_results: int = 5,
         temperature: float = 0.0,
         max_tokens: int = 2048
     ):
