@@ -3,26 +3,26 @@ import base64
 import json
 
 
-def list_github_directory(repo_name: str, path: str, github_token: str) -> str:
+def list_github_directory(repo_name: str, path: str, github_token: str, branch:str) -> str:
     """
     Lists files in a GitHub repository directory.
     """
     if not github_token: return "Error: GitHub token is missing."
 
     path = path.strip("/")
-    url = f"https://api.github.com/repos/{repo_name}/contents/{path}"
+    url = f"https://api.github.com/repos/{repo_name}/contents/{path}?ref={branch}"
     headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
 
     try:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            return f"Error listing directory: {response.status_code} - {response.text}"
+            return f"Error listing directory on branch '{branch}': {response.status_code} - {response.text}"
         
         items = response.json()
         if isinstance(items, dict):
             return f"Error: '{path}' is a file, not a directory."
         
-        output = [f"--- Contents of {repo_name}/{path} ---"]
+        output = [f"--- Contents of {repo_name}/{path} (Branch: {branch}) ---"]
         for item in items:
             type_marker = "[DIR]" if item['type'] == 'dir' else "[FILE]"
             output.append(f"{type_marker} {item['name']}")
@@ -30,23 +30,23 @@ def list_github_directory(repo_name: str, path: str, github_token: str) -> str:
 
     except Exception as e:
         return f"Exception: {str(e)}"
-
-def read_github_file(repo_name: str, file_path: str, github_token: str) -> str:
+    
+def read_github_file(repo_name: str, file_path: str, github_token: str, branch:str) -> str:
     """
     Reads the content of a file from GitHub.
     """
     if not github_token: return "Error: GitHub token is missing."
 
-    url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}"
+    url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}?ref={branch}"
     headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
 
     try:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            return f"Error reading file: {response.status_code} - {response.text}"
+            return f"Error reading file on branch '{branch}': {response.status_code} - {response.text}"
         
         content = base64.b64decode(response.json()['content']).decode('utf-8')
-        return f"--- Content of {file_path} ---\n{content}"
+        return f"--- Content of {file_path} (Branch: {branch}) ---\n{content}"
 
     except Exception as e:
         return f"Exception: {str(e)}"
@@ -126,5 +126,28 @@ def create_or_update_file(repo_name: str, file_path: str, file_content: str, com
             return f"Success: File '{file_path}' {action} on branch '{branch_name}'. View at: {resp.json()['content']['html_url']}"
         else:
             return f"Error writing file: {resp.status_code} - {resp.text}"
+    except Exception as e:
+        return f"Exception: {str(e)}"
+    
+def create_github_issue(repo_name: str, title: str, body: str, github_token: str) -> str:
+    """
+    Creates a new Issue on GitHub via API.
+    """
+    if not github_token: return "Error: GitHub token missing."
+    
+    url = f"https://api.github.com/repos/{repo_name}/issues"
+    headers = {
+        "Authorization": f"token {github_token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {"title": title, "body": body}
+    
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code == 201:
+            data = resp.json()
+            return f"Success: Issue #{data['number']} created. URL: {data['html_url']}"
+        else:
+            return f"Error creating issue: {resp.status_code} - {resp.text}"
     except Exception as e:
         return f"Exception: {str(e)}"

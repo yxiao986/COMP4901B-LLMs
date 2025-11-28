@@ -1,5 +1,7 @@
 import os
 import json
+import requests
+import re
 
 def generate_html_report(filename: str, title: str, pages: list[dict]) -> str:
     """
@@ -167,3 +169,174 @@ def generate_html_report(filename: str, title: str, pages: list[dict]) -> str:
         return f"Success: Interactive report generated at {os.path.abspath(filename)}"
     except Exception as e:
         return f"Error creating report: {str(e)}"
+    
+
+
+def create_notion_page(title: str, content: str, notion_token: str, parent_page_id: str) -> str:
+    """
+    Creates a NEW sub-page inside the parent page.
+    Returns the ID of the new page so it can be appended to later.
+    """
+    if not notion_token or not parent_page_id:
+        return "Error: Notion credentials missing."
+
+    url = "https://api.notion.com/v1/pages"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+
+    all_blocks = parse_markdown_to_blocks(content)
+    first_batch = all_blocks[:100]
+
+    payload = {
+        "parent": {"page_id": parent_page_id}, 
+        "properties": {
+            "title": {"title": [{"text": {"content": title}}]}
+        },
+        "children": first_batch
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 200:
+            return f"Error creating page: {response.status_code} - {response.text}"
+        
+        data = response.json()
+        new_page_id = data.get('id')    
+        new_page_url = data.get('url')   
+        
+        if len(all_blocks) > 100:
+            remaining = all_blocks[100:]
+            _internal_append_blocks(new_page_id, remaining, headers)
+
+        return f"Success: Created new page '{title}'.\nPAGE_ID: {new_page_id}\nURL: {new_page_url}"
+
+    except Exception as e:
+        return f"Notion Exception: {str(e)}"
+
+def append_to_notion_page(target_page_id: str, content: str, notion_token: str) -> str:
+    """
+    Appends content to a SPECIFIC page (using the ID returned by create_notion_page).
+    """
+    if not notion_token or not target_page_id:
+        return "Error: Token or Target Page ID missing."
+
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    
+    blocks = parse_markdown_to_blocks(content)
+    return _internal_append_blocks(target_page_id, blocks, headers)
+
+def _internal_append_blocks(page_id: str, blocks: list, headers: dict) -> str:
+    """Helper to handle batch appending."""
+    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
+    batch_size = 100
+    total_added = 0
+    errors = []
+
+    for i in range(0, len(blocks), batch_size):
+        batch = blocks[i : i + batch_size]
+        payload = {"children": batch}
+        try:
+            resp = requests.patch(url, headers=headers, json=payload)
+            if resp.status_code == 200:
+                total_added += len(batch)
+            else:
+                errors.append(f"Batch {i} failed: {resp.text}")
+        except Exception as e:
+            errors.append(str(e))
+            
+    if errors:
+        return f"Partial success: Added {total_added} blocks. Errors: {errors}"
+    return f"Success: Appended {total_added} blocks to Page {page_id}."
+
+def parse_markdown_to_blocks(text: str) -> list:
+    """
+    Parses markdown into Notion Blocks.
+    Updates:
+    - '- [ ] ' -> To-Do (unchecked)
+    - '- [x] ' -> To-Do (checked)
+    - '> '     -> Toggle List (useful for hiding answers/details)
+    """
+    blocks = []
+    parts = re.split(r'(```[\s\S]*?```)', text)
+
+    for part in parts:
+        if not part.strip(): continue
+
+        if part.startswith("```"):
+            # === Code Blocks ===
+            content = part.strip()[3:-3]
+            lines = content.split('\n', 1)
+            language = "plain text"
+            code_text = content
+            
+            if len(lines) > 1:
+                first = lines[0].strip().lower()
+                if first and first.isalpha(): 
+                    language = first
+                    code_text = lines[1]
+                else:
+                    code_text = lines[1] # Handle empty first line case
+            
+            for chunk in split_text(code_text, 2000):
+                blocks.append({
+                    "object": "block", "type": "code",
+                    "code": {"rich_text": [{"text": {"content": chunk}}], "language": language}
+                })
+        else:
+            # === Text Blocks ===
+            lines = part.split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line: continue
+
+                # Headers
+                if line.startswith("# "):
+                    blocks.append(create_block("heading_1", line[2:]))
+                elif line.startswith("## "):
+                    blocks.append(create_block("heading_2", line[3:]))
+                elif line.startswith("### "):
+                    blocks.append(create_block("heading_3", line[4:]))
+                
+                # Interactive: To-Do List
+                elif line.startswith("- [ ] "):
+                    blocks.append(create_block("to_do", line[6:], checked=False))
+                elif line.startswith("- [x] "):
+                    blocks.append(create_block("to_do", line[6:], checked=True))
+                
+                # Interactive: Toggle List 
+                elif line.startswith("> "):
+                    blocks.append(create_block("toggle", line[2:]))
+                
+                # Standard Lists
+                elif line.startswith("- ") or line.startswith("* "):
+                    blocks.append(create_block("bulleted_list_item", line[2:]))
+                
+                # Paragraph
+                else:
+                    blocks.append(create_block("paragraph", line))
+    return blocks
+
+def create_block(type_name, text, checked=None):
+    """Helper to create standard text-based blocks."""
+    content = text[:2000] # Notion limit
+    block = {
+        "object": "block",
+        "type": type_name,
+        type_name: {
+            "rich_text": [{"type": "text", "text": {"content": content}}]
+        }
+    }
+    # Add checked property for to_do blocks
+    if type_name == "to_do" and checked is not None:
+        block[type_name]["checked"] = checked
+    return block
+
+def split_text(text, length):
+    return [text[i:i+length] for i in range(0, len(text), length)]

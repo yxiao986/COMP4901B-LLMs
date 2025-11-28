@@ -43,7 +43,8 @@ def get_tools_list() -> list[dict]:
                     "type": "object",
                     "properties": {
                         "repo_name": {"type": "string", "description": "e.g. 'owner/repo'"},
-                        "path": {"type": "string", "description": "Folder path (empty for root)"}
+                        "path": {"type": "string", "description": "Folder path (empty for root)"},
+                        "branch": {"type": "string", "description": "The branch to list files from (default: 'main')."}
                     },
                     "required": ["repo_name", "path"]
                 }
@@ -58,7 +59,8 @@ def get_tools_list() -> list[dict]:
                     "type": "object",
                     "properties": {
                         "repo_name": {"type": "string"},
-                        "file_path": {"type": "string", "description": "Full path to the file"}
+                        "file_path": {"type": "string", "description": "Full path to the file"},
+                        "branch": {"type": "string", "description": "The branch to read the file from (default: 'main')."}
                     },
                     "required": ["repo_name", "file_path"]
                 }
@@ -160,6 +162,34 @@ def get_tools_list() -> list[dict]:
                         "content": {"type": "string", "description": "Markdown content to append."}
                     },
                     "required": ["target_page_id", "content"]
+                }
+            }
+        },{
+            "type": "function",
+            "function": {
+                "name": "create_github_issue",
+                "description": "Create a GitHub Issue to report bugs or request features.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "repo_name": {"type": "string", "description": "Target repository (owner/repo)."},
+                        "title": {"type": "string", "description": "Issue title."},
+                        "body": {"type": "string", "description": "Detailed description of the issue."}
+                    },
+                    "required": ["repo_name", "title", "body"]
+                }
+            }
+        },{
+            "type": "function",
+            "function": {
+                "name": "send_slack_message",
+                "description": "Send a notification to the team Slack channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {"type": "string", "description": "The message content."}
+                    },
+                    "required": ["message"]
                 }
             }
         }]

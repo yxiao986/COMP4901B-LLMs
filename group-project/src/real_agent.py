@@ -1,9 +1,11 @@
 import json
 from openai import OpenAI
-from src.tools.github_tools import create_github_branch, create_or_update_file, list_github_directory, read_github_file
 from src.tools.tool_list import get_tools_list
 from src.tools.web_tools import search, format_search_results, browse
-from src.tools.report_tool import generate_html_report, create_notion_page, append_to_notion_page
+from src.tools.report_tools import generate_html_report, create_notion_page, append_to_notion_page
+from src.tools.github_tools import create_github_branch, create_or_update_file, list_github_directory, read_github_file, create_github_issue
+from src.tools.slack_tool import send_slack_message
+
 
 class RealAgent:
     def __init__(
@@ -15,6 +17,7 @@ class RealAgent:
         notion_page_id: str,
         model_name: str = "deepseek-chat",
         base_url: str = "https://api.deepseek.com/v1",
+        slack_webhook_url: str = "",
         max_agent_steps: int = 10,
         num_search_results: int = 5,
         temperature: float = 0.0,
@@ -56,6 +59,9 @@ class RealAgent:
         self.notion_token = notion_token
         self.notion_page_id = notion_page_id
 
+        # Slack Configuration
+        self.webhook_url = slack_webhook_url
+
     def _build_tool_executors(self) -> dict:
         """
         Build the mapping from tools name to executors.
@@ -69,7 +75,9 @@ class RealAgent:
             "create_or_update_file": self._execute_write_file,
             "generate_html_report": self._execute_generate_report,
             "create_notion_page": self._execute_create_notion_page,
-            "append_to_notion_page": self._execute_append_notion_page
+            "append_to_notion_page": self._execute_append_notion_page,
+            "create_github_issue": self._execute_create_github_issue,   
+            "send_slack_message": self._execute_send_slack_message
         }
 
     def _execute_search(self, step_number: int, query: str) -> str:
@@ -123,10 +131,10 @@ class RealAgent:
         except Exception as e:
             return self._handle_tool_error(step_number, "browse", str(e))
         
-    def _execute_list_github(self, repo_name, path, step_number=0):
+    def _execute_list_github(self, repo_name, path, branch="main", step_number=0):
         try:
-            print(f"--- Agent is Listing {path} ---")
-            result = list_github_directory(repo_name, path, self.github_token)
+            print(f"--- Agent is Listing {path} in {branch} branch ---")
+            result = list_github_directory(repo_name, path, self.github_token, branch)
             self.trajectory_steps.append({
                 "step": step_number, "action": "list_files", "output": result
             })
@@ -134,10 +142,10 @@ class RealAgent:
         except Exception as e:
             return self._handle_tool_error(step_number, "list_github_directory", str(e))
 
-    def _execute_read_github(self, repo_name, file_path, step_number=0):
+    def _execute_read_github(self, repo_name, file_path, branch="main", step_number=0):
         try:
-            print(f"--- Agent is Reading {file_path} ---")
-            result = read_github_file(repo_name, file_path, self.github_token)
+            print(f"--- Agent is Reading {file_path} in {branch} branch ---")
+            result = read_github_file(repo_name, file_path, self.github_token,branch)
             # Log truncated content to keep logs clean
             log_content = result[:500] + "..." if len(result) > 500 else result
             self.trajectory_steps.append({
@@ -215,6 +223,36 @@ class RealAgent:
         except Exception as e:
             return self._handle_tool_error(step_number, "append_to_notion_page", str(e))
         
+    def _execute_create_github_issue(self, repo_name, title, body, step_number=0):
+        try:
+            print(f"--- Agent is Creating GitHub Issue: {title} ---")
+            result = create_github_issue(repo_name, title, body, self.github_token)
+            self.trajectory_steps.append({
+                "step": step_number,
+                "action": "tool_call",
+                "tool": "create_github_issue",
+                "args": {"title": title},
+                "output": result
+            })
+            return result
+        except Exception as e:
+            return self._handle_tool_error(step_number, "create_github_issue", str(e))
+        
+    def _execute_send_slack_message(self, message, step_number=0):
+        try:
+            print(f"--- Agent is Sending Slack Message ---")
+            result = send_slack_message(message,self.webhook_url)
+            self.trajectory_steps.append({
+                "step": step_number,
+                "action": "tool_call",
+                "tool": "send_slack_message",
+                "args": {},
+                "output": result
+            })
+            return result
+        except Exception as e:
+            return self._handle_tool_error(step_number, "send_slack_message", str(e))
+        
     def _handle_tool_error(self, step_number, tool_name, error_msg):
         """Helper to log errors consistently."""
         error_response = f"Error executing {tool_name}: {error_msg}"
@@ -241,13 +279,15 @@ class RealAgent:
         Tools Available:
         1. Search: Use this tool to search the web for relevant information.
         2. Browse: Use this tool to visit a specific URL and extract detailed page content.
-        3. List GitHub Directory: Use this tool to list files in a GitHub repository folder.
-        4. Read GitHub File: Use this tool to read the content of a file from GitHub.
+        3. List GitHub Directory: Use this tool to list files in a GitHub repository folder in a specific branch.
+        4. Read GitHub File: Use this tool to read the content of a file from GitHub in a specific branch.
         5. Create GitHub Branch: Use this tool to create a new branch from a base branch in a GitHub repository.
         6. Create or Update GitHub File: Use this tool to create or update a file in a specific branch of a GitHub repository.
         7. Generate HTML Report: Use this tool to create an interactive HTML report summarizing your findings.
         8. Create Notion Page: Use this tool to create a new page in Notion with specified content.
         9. Append to Notion Page: Use this tool to append content to an existing Notion page.
+        10. Create GitHub Issue: Use this tool to create a GitHub Issue to report bugs or request features.
+        11. Send Slack Message: Use this tool to send a notification message to a Slack channel.
 
         CORE CODING CAPABILITIES:
         1. **Code Analysis**: Carefully examine repository files to understand structure and logic before editing.
@@ -261,13 +301,8 @@ class RealAgent:
         3. When editing, call the GitHub tools with the proper branch and arguments; describe each change in the conversation.
         4. After completing the edits, summarize which files were changed, what validation was run or suggested, and confirm the target branch contains the new commits.
         5. Only return a final answer when no more tool calls are needed; if the agent is finished, explain why the request is satisfied.
-        
-        NOTE: When using Create or Append to Notion Page, ensure that you generate the content peice by piece if the content is large. You should break down the content into smaller sections and call the tool multiple times to append each section to the Notion page.
-        
-        IMPORTANT: Distiniguish between when to use Generate HTML Report and when to use Create or Append to Notion Page!
-        - Use Generate HTML Report when the user requests a comprehensive, interactive documentation website with features like sidebar navigation, search, and Mermaid diagrams.
-        - Use Create or Append to Notion Page when the user wants to create or update content in their Notion workspace, especially for collaborative documents or study plans.
-        When user is ask for NOTION PAGE, DO NOT use Generate HTML Report tool.
+                
+        IMPORTANT: When listing or reading GitHub files, ALWAYS specify the target branch to avoid confusion.
         """
 
         # Construct conversation

@@ -66,6 +66,7 @@ def main():
     github_token = os.getenv("GITHUB_TOKEN")
     notion_token = os.getenv("NOTION_API_KEY")
     notion_page_id = os.getenv("NOTION_PAGE_ID")    
+    slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 
     if not deepseek_api_key:
         logger.warning("DEEPSEEK_API_KEY not found in environment variables.")
@@ -88,6 +89,7 @@ def main():
         notion_token=notion_token,
         notion_page_id=notion_page_id,
         model_name="deepseek-chat",
+        slack_webhook_url=slack_webhook_url,
         max_agent_steps=args.max_agent_steps,
         num_search_results=args.num_search_results,
         max_tokens=args.max_tokens
