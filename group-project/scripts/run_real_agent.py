@@ -64,6 +64,8 @@ def main():
     deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
     serper_api_key = os.getenv("SERPER_API_KEY")
     github_token = os.getenv("GITHUB_TOKEN")
+    notion_token = os.getenv("NOTION_API_KEY")
+    notion_page_id = os.getenv("NOTION_PAGE_ID")    
 
     if not deepseek_api_key:
         logger.warning("DEEPSEEK_API_KEY not found in environment variables.")
@@ -83,6 +85,8 @@ def main():
         deepseek_api_key=deepseek_api_key,
         serper_api_key=serper_api_key,
         github_token=github_token,
+        notion_token=notion_token,
+        notion_page_id=notion_page_id,
         model_name="deepseek-chat",
         max_agent_steps=args.max_agent_steps,
         num_search_results=args.num_search_results,

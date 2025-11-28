@@ -130,5 +130,37 @@ def get_tools_list() -> list[dict]:
                     "required": ["filename", "title", "pages"]
                 }
             }
+        },{
+            "type": "function",
+            "function": {
+                "name": "create_notion_page",
+                "description": "Create a NEW Notion page (document) inside the project folder. Returns the PAGE_ID of the new page.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Title of the new document"},
+                        "content": {"type": "string", "description": "Initial content (Markdown)."}
+                    },
+                    "required": ["title", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "append_to_notion_page",
+                "description": "Append content to an EXISTING Notion page. You MUST provide the target_page_id returned by a previous 'create_notion_page' call.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target_page_id": {
+                            "type": "string", 
+                            "description": "The specific Page ID (e.g., '1463b...'). You MUST get this ID from the output of a previous 'create_notion_page' tool call."
+                        },
+                        "content": {"type": "string", "description": "Markdown content to append."}
+                    },
+                    "required": ["target_page_id", "content"]
+                }
+            }
         }]
 

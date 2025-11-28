@@ -3,7 +3,7 @@ from openai import OpenAI
 from src.tools.github_tools import create_github_branch, create_or_update_file, list_github_directory, read_github_file
 from src.tools.tool_list import get_tools_list
 from src.tools.web_tools import search, format_search_results, browse
-from src.tools.report_tool import generate_html_report
+from src.tools.report_tool import generate_html_report, create_notion_page, append_to_notion_page
 
 class RealAgent:
     def __init__(
@@ -11,6 +11,8 @@ class RealAgent:
         deepseek_api_key: str,
         serper_api_key: str,
         github_token: str,
+        notion_token: str,
+        notion_page_id: str,
         model_name: str = "deepseek-chat",
         base_url: str = "https://api.deepseek.com/v1",
         max_agent_steps: int = 10,
@@ -50,6 +52,10 @@ class RealAgent:
         # Github Configuration
         self.github_token = github_token
 
+        # Notion Configuration
+        self.notion_token = notion_token
+        self.notion_page_id = notion_page_id
+
     def _build_tool_executors(self) -> dict:
         """
         Build the mapping from tools name to executors.
@@ -61,7 +67,9 @@ class RealAgent:
             "read_github_file": self._execute_read_github,
             "create_github_branch": self._execute_create_branch,
             "create_or_update_file": self._execute_write_file,
-            "generate_html_report": self._execute_generate_report
+            "generate_html_report": self._execute_generate_report,
+            "create_notion_page": self._execute_create_notion_page,
+            "append_to_notion_page": self._execute_append_notion_page
         }
 
     def _execute_search(self, step_number: int, query: str) -> str:
@@ -177,6 +185,35 @@ class RealAgent:
         except Exception as e:
             return self._handle_tool_error(step_number, "generate_html_report", str(e))
         
+    def _execute_create_notion_page(self, title, content, step_number=0):
+        try:
+            print(f"--- Agent is Creating Notion Page: {title} ---")
+            result = create_notion_page(title, content, self.notion_token, self.notion_page_id)
+            self.trajectory_steps.append({
+                "step": step_number,
+                "action": "tool_call",
+                "tool": "create_notion_page",
+                "args": {"title": title},
+                "output": f"Created Notion page with ID: {result}"
+            })
+            return result
+        except Exception as e:
+            return self._handle_tool_error(step_number, "create_notion_page", str(e))
+        
+    def _execute_append_notion_page(self, target_page_id, content, step_number=0):  
+        try:
+            print(f"--- Agent is Appending to Notion Page ID: {target_page_id} ---")
+            result = append_to_notion_page(target_page_id, content, self.notion_token)
+            self.trajectory_steps.append({
+                "step": step_number,
+                "action": "tool_call",
+                "tool": "append_to_notion_page",
+                "args": {},
+                "output": f"Appended content to Notion page ID: {target_page_id}"
+            })
+            return result
+        except Exception as e:
+            return self._handle_tool_error(step_number, "append_to_notion_page", str(e))
         
     def _handle_tool_error(self, step_number, tool_name, error_msg):
         """Helper to log errors consistently."""
@@ -208,8 +245,11 @@ class RealAgent:
         4. Read GitHub File: Use this tool to read the content of a file from GitHub.
         5. Create GitHub Branch: Use this tool to create a new branch from a base branch in a GitHub repository.
         6. Create or Update GitHub File: Use this tool to create or update a file in a specific branch of a GitHub repository.
+        7. Generate HTML Report: Use this tool to create an interactive HTML report summarizing your findings.
+        8. Create Notion Page: Use this tool to create a new page in Notion with specified content.
+        9. Append to Notion Page: Use this tool to append content to an existing Notion page.
 
-        CORE CAPABILITIES:
+        CORE CODING CAPABILITIES:
         1. **Code Analysis**: Carefully examine repository files to understand structure and logic before editing.
         2. **Planning**: Summarize a concrete plan (files, improvements, tool calls) whenever the user request requires multi-step work.
         3. **Execution**: Apply the GitHub tools to implement edits, ensuring every `update_github_file` targets the prescribed branch and uses meaningful commit messages.
@@ -220,7 +260,15 @@ class RealAgent:
         2. Use exploratory tools (list/read) before editing so you know what to change.
         3. When editing, call the GitHub tools with the proper branch and arguments; describe each change in the conversation.
         4. After completing the edits, summarize which files were changed, what validation was run or suggested, and confirm the target branch contains the new commits.
-        5. Only return a final answer when no more tool calls are needed; if the agent is finished, explain why the request is satisfied."""
+        5. Only return a final answer when no more tool calls are needed; if the agent is finished, explain why the request is satisfied.
+        
+        NOTE: When using Create or Append to Notion Page, ensure that you generate the content peice by piece if the content is large. You should break down the content into smaller sections and call the tool multiple times to append each section to the Notion page.
+        
+        IMPORTANT: Distiniguish between when to use Generate HTML Report and when to use Create or Append to Notion Page!
+        - Use Generate HTML Report when the user requests a comprehensive, interactive documentation website with features like sidebar navigation, search, and Mermaid diagrams.
+        - Use Create or Append to Notion Page when the user wants to create or update content in their Notion workspace, especially for collaborative documents or study plans.
+        When user is ask for NOTION PAGE, DO NOT use Generate HTML Report tool.
+        """
 
         # Construct conversation
         self.conversation_history = [
