@@ -3,11 +3,11 @@ def calculate_statistics(numbers):
     Calculates basic statistics for a list of numbers.
     Returns a dictionary with sum, average, max, and min.
     """
-    if not numbers:
-        return None
-    
     if not isinstance(numbers, list):
         raise TypeError("Input must be a list")
+    
+    if not numbers:
+        return None
 
     valid_numbers = [n for n in numbers if isinstance(n, (int, float))]
     
@@ -30,7 +30,7 @@ def validate_username(username):
     Validates a username.
     Rules:
     - Must be between 3 and 20 characters.
-    - Must contain only alphanumeric characters.
+    - Must contain only alphanumeric characters and underscores.
     - Must not start with a number.
     """
     if not isinstance(username, str):
@@ -39,7 +39,8 @@ def validate_username(username):
     if len(username) < 3 or len(username) > 20:
         return False
         
-    if not username.isalnum():
+    # Allow alphanumeric characters and underscores
+    if not all(c.isalnum() or c == '_' for c in username):
         return False
         
     if username[0].isdigit():
